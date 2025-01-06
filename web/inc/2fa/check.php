@@ -1,4 +1,7 @@
 <?php
+use RobThree\Auth\TwoFactorAuth;
+use RobThree\Auth\Providers\Qr\QRServerProvider;
+require_once __DIR__ . "/../vendor/autoload.php";
 
 if (isset($argv[1]) && isset($argv[2])) {
 	$secret = $argv[1];
@@ -11,12 +14,7 @@ if (isset($argv[1]) && isset($argv[2])) {
 	exit();
 }
 
-require_once "/usr/local/hestia/web/inc/2fa/loader.php";
-Loader::register("./", "RobThree\\Auth");
-
-use RobThree\Auth\TwoFactorAuth;
-
-$tfa = new TwoFactorAuth("Hestia Control Panel");
+$tfa = new TwoFactorAuth(new QRServerProvider(), "Hestia Control Panel");
 
 // Verify code
 $result = $tfa->verifyCode($secret, $token);

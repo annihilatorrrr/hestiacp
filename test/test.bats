@@ -337,6 +337,55 @@ function check_ip_not_banned(){
 	assert_output --partial 'Error: invalid user format'
 }
 
+@test "User: Add new user Failed 4" {
+	run v-add-user '1234'  $user $user@hestiacp2.com default "Super Test"
+	assert_failure $E_INVALID
+	assert_output --partial 'Error: invalid user format'
+}
+
+@test "User: Add new user Failed 5" {
+	run v-add-user '1aap'  $user $user@hestiacp2.com default "Super Test"
+	assert_failure $E_INVALID
+	assert_output --partial 'Error: invalid user format'
+}
+
+@test "User: Add new user Failed 6" {
+	run v-add-user 'ib_Buffer'  $user $user@hestiacp2.com default "Super Test"
+	assert_failure $E_INVALID
+	assert_output --partial 'Error: The user name'
+}
+
+@test "User: Add new user Failed 7" {
+	run v-add-user 'hello.com'  $user $user@hestiacp2.com default "Super Test"
+	assert_failure $E_INVALID
+	assert_output --partial 'Error: invalid user format'
+}
+
+
+@test "User: Add new user Success 1" {
+	run v-add-user 'jaap01'  $user $user@hestiacp2.com default "Super Test"
+	assert_success
+	refute_output
+}
+
+@test "User: Add new user Success 1 Delete" {
+	run v-delete-user jaap01
+	assert_success
+	refute_output
+}
+
+@test "User: Add new user Success 2" {
+	run v-add-user 'buffer'  $user $user@hestiacp2.com default "Super Test"
+	assert_success
+	refute_output
+}
+
+@test "User: Add new user Success 2 Delete" {
+	run v-delete-user buffer
+	assert_success
+	refute_output
+}
+
 @test "User: Change user password" {
     run v-change-user-password "$user" "$userpass2"
     assert_success
@@ -368,6 +417,8 @@ function check_ip_not_banned(){
 
     run stat -c '%U' /home/$user
     assert_output --partial "$user"
+		mount_file=$(systemd-escape -p --suffix=mount "/srv/jail/$user/home")
+		assert_file_not_exist /etc/systemd/system/$mount_file
 }
 
 @test "User: Change user invalid shell" {
@@ -383,8 +434,20 @@ function check_ip_not_banned(){
 
     run stat -c '%U' /home/$user
     assert_output --partial 'root'
+		mount_file=$(systemd-escape -p --suffix=mount "/srv/jail/$user/home/$user")
+		assert_file_exist /etc/systemd/system/$mount_file
 }
 
+@test "User: Change user bash with bubblewrap jail" {
+    run v-change-user-shell $user jailbash
+    assert_success
+    refute_output
+
+    run stat -c '%U' /home/$user
+    assert_output --partial "$user"
+		mount_file=$(systemd-escape -p --suffix=mount "/srv/jail/$user/home")
+		assert_file_not_exist /etc/systemd/system/$mount_file
+}
 
 @test "User: Change user default ns" {
     run v-change-user-ns $user ns0.com ns1.com ns2.com ns3.com
@@ -617,9 +680,9 @@ function check_ip_not_banned(){
 
 @test "Ip: [Debian] Netplan file updated" {
    # Skip with netplan
-   if [ -f /etc/netplan/60-hestia.yaml ]; then
-   skip
-   fi
+   if [ $(lsb_release -s -i) = "Ubuntu" ]; then
+	 skip
+	 fi
 
    assert_file_exist  /etc/network/interfaces
    assert_file_contains  /etc/network/interfaces "$ip"
@@ -651,7 +714,7 @@ function check_ip_not_banned(){
     fi
 }
 
-@test "Ip: Delete ips" {
+@test "Ip: Delete ip 198.18.0.12" {
     local ip="198.18.0.12"
     run v-delete-sys-ip $ip
     assert_success
@@ -659,31 +722,43 @@ function check_ip_not_banned(){
 
     assert_file_not_exist /etc/$WEB_SYSTEM/conf.d/$ip.conf
     assert_file_not_exist $HESTIA/data/ips/$ip
+}
 
+@test "Ip: [Ubuntu] Netplan file changed" {
+	 # Skip if Debian
+	 if [ $(lsb_release -s -i) != "Ubuntu" ]; then
+	 skip
+	 fi
 
-    ip="198.18.0.121"
-    run v-delete-sys-ip $ip
-    assert_success
-    refute_output
+	 ip="198.18.0.121"
+	 assert_file_exist /etc/netplan/60-hestia.yaml
+	 assert_file_contains /etc/netplan/60-hestia.yaml "$ip"
+}
 
-    assert_file_not_exist /etc/$WEB_SYSTEM/conf.d/$ip.conf
-    assert_file_not_exist $HESTIA/data/ips/$ip
+@test "Ip: Delete ip 198.18.0.121" {
+	ip="198.18.0.121"
+	run v-delete-sys-ip $ip
+	assert_success
+	refute_output
 
-    if [ -n "$PROXY_SYSTEM" ]; then
-        assert_file_not_exist /etc/$PROXY_SYSTEM/conf.d/$ip.conf
-    fi
+	assert_file_not_exist /etc/$WEB_SYSTEM/conf.d/$ip.conf
+	assert_file_not_exist $HESTIA/data/ips/$ip
 
-    # remoteip and rpaf config hashes must match the initial one
-    if [ ! -z "$a2_rpaf_hash" ]; then
-        local a2_rpaf="/etc/$WEB_SYSTEM/mods-enabled/rpaf.conf"
-        file_hash=$(cat $a2_rpaf |md5sum |cut -d" " -f1)
-        assert_equal "$file_hash" "$a2_rpaf_hash"
-    fi
-    if [ ! -z "$a2_remoteip_hash" ]; then
-        local a2_remoteip="/etc/$WEB_SYSTEM/mods-enabled/remoteip.conf"
-        file_hash=$(cat $a2_remoteip |md5sum |cut -d" " -f1)
-        assert_equal "$file_hash" "$a2_remoteip_hash"
-    fi
+	if [ -n "$PROXY_SYSTEM" ]; then
+			assert_file_not_exist /etc/$PROXY_SYSTEM/conf.d/$ip.conf
+	fi
+
+	# remoteip and rpaf config hashes must match the initial one
+	if [ ! -z "$a2_rpaf_hash" ]; then
+			local a2_rpaf="/etc/$WEB_SYSTEM/mods-enabled/rpaf.conf"
+			file_hash=$(cat $a2_rpaf |md5sum |cut -d" " -f1)
+			assert_equal "$file_hash" "$a2_rpaf_hash"
+	fi
+	if [ ! -z "$a2_remoteip_hash" ]; then
+			local a2_remoteip="/etc/$WEB_SYSTEM/mods-enabled/remoteip.conf"
+			file_hash=$(cat $a2_remoteip |md5sum |cut -d" " -f1)
+			assert_equal "$file_hash" "$a2_remoteip_hash"
+	fi
 }
 
 @test "Ip: Add IP for rest of the test" {
@@ -767,7 +842,10 @@ function check_ip_not_banned(){
     assert_success
     refute_output
 
+	echo -e "<?php\necho 'Hestia Test:'.(4*3);" > $HOMEDIR/$user/web/$domain/public_html/php-test.php
     validate_web_domain $user $domain 'This site is currently suspended'
+	validate_web_domain $user $domain 'This site is currently suspended' 'php-test.php'
+	rm $HOMEDIR/$user/web/$domain/public_html/php-test.php
 }
 
 @test "WEB: Unsuspend web domain" {
@@ -847,10 +925,7 @@ function check_ip_not_banned(){
    run v-add-web-domain $user idn-tést.eu 198.18.0.125
    assert_success
    refute_output
-
-   echo -e "<?php\necho 'Hestia Test:'.(4*3);" > $HOMEDIR/$user/web/idn-tést.eu/public_html/php-test.php
-   validate_web_domain $user idn-tést.eu 'Hestia Test:12' 'php-test.php'
-   rm $HOMEDIR/$user/web/idn-tést.eu/public_html/php-test.php
+	 assert_file_exist /home/$user/web/idn-tést.eu/public_html/index.html
 }
 
 @test "WEB: Add IDN domain ASCII idn-tést.eu" {
@@ -1099,6 +1174,30 @@ function check_ip_not_banned(){
     rm $HOMEDIR/$user/web/$multi_domain/public_html/php-test.php
 }
 
+@test "Multiphp: Change backend version - PHP v8.2" {
+	test_phpver='8.2'
+	multi_domain="multiphp.${domain}"
+
+	if [ ! -d "/etc/php/${test_phpver}/fpm/pool.d/" ]; then
+		skip "PHP ${test_phpver} not installed"
+	fi
+
+	run v-change-web-domain-backend-tpl $user $multi_domain 'PHP-8_2' 'yes'
+	assert_success
+	refute_output
+
+	# Changing web backend will create a php-fpm pool config in the corresponding php folder
+	assert_file_exist "/etc/php/${test_phpver}/fpm/pool.d/${multi_domain}.conf"
+
+	# A single php-fpm pool config file must be present
+	num_fpm_config_files="$(find -L /etc/php/ -name "${multi_domain}.conf" | wc -l)"
+	assert_equal "$num_fpm_config_files" '1'
+
+	echo -e "<?php\necho 'hestia-multiphptest:'.PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" > "$HOMEDIR/$user/web/$multi_domain/public_html/php-test.php"
+	validate_web_domain $user $multi_domain "hestia-multiphptest:$test_phpver" 'php-test.php'
+	rm $HOMEDIR/$user/web/$multi_domain/public_html/php-test.php
+}
+
 @test "Multiphp: Cleanup" {
     multi_domain="multiphp.${domain}"
 
@@ -1211,49 +1310,54 @@ function check_ip_not_banned(){
 }
 
 @test "DNS: Add domain record" {
-    run v-add-dns-record $user $domain test A 198.18.0.125 '' 20
+    run v-add-dns-record $user $domain test A 198.18.0.125 '' 30
     assert_success
     refute_output
 }
 
 @test "DNS: Add domain record *.domain.com" {
-    run v-add-dns-record $user $domain '*' A 198.18.0.125 '' 30
+    run v-add-dns-record $user $domain '*' A 198.18.0.125 '' 40
     assert_success
     refute_output
 }
 
+@test "DNS: Add domain record *.domain.com with ID 0" {
+		run v-add-dns-record $user $domain '*' A 198.18.0.125 '' 0
+		assert_failure $E_INVALID
+}
+
 @test "DNS: Change DNS record" {
-  run v-change-dns-record $user $domain 20 test A 198.18.0.125 "" "" 1500
+  run v-change-dns-record $user $domain 30 test A 198.18.0.125 "" "" 1500
   assert_success
   refute_output
 }
 
 @test "DNS: Change DNS record (no update)" {
-  run v-change-dns-record $user $domain 20 test A 198.18.0.125 "" "" 1500
+  run v-change-dns-record $user $domain 30 test A 198.18.0.125 "" "" 1500
   assert_failure $E_EXSIST
 }
 
 @test "DNS: Change DNS record id" {
-  run v-change-dns-record-id $user $domain 20 21
+  run v-change-dns-record-id $user $domain 30 31
   assert_success
   refute_output
   # Change back
-  run v-change-dns-record-id $user $domain 21 20
+  run v-change-dns-record-id $user $domain 31 30
 }
 
 @test "DNS: Change DNS record id (no update)" {
-  run v-change-dns-record-id  $user $domain 20 20
+  run v-change-dns-record-id  $user $domain 30 30
   assert_failure $E_EXSIST
 }
 
 @test "DNS: Delete domain record" {
-    run v-delete-dns-record $user $domain 20
+    run v-delete-dns-record $user $domain 30
     assert_success
     refute_output
 }
 
 @test "DNS: Delete missing domain record" {
-    run v-delete-dns-record $user $domain 20
+    run v-delete-dns-record $user $domain 30
     assert_failure $E_NOTEXIST
 }
 
@@ -1455,16 +1559,16 @@ function check_ip_not_banned(){
     validate_webmail_domain $user $domain 'Welcome to Roundcube Webmail'
 }
 
-@test "MAIL: Add mail domain webmail client (Rainloop)" {
-    if [ -z "$(echo $WEBMAIL_SYSTEM | grep -w "rainloop")" ]; then
-        skip "Webmail client Rainloop not installed"
+@test "MAIL: Add mail domain webmail client (SnappyMail)" {
+    if [ -z "$(echo $WEBMAIL_SYSTEM | grep -w "snappymail")" ]; then
+        skip "Webmail client SnappyMail not installed"
     fi
-    run v-add-mail-domain-webmail $user $domain "rainloop" "yes"
+    run v-add-mail-domain-webmail $user $domain "snappymail" "yes"
     assert_success
     refute_output
     validate_mail_domain $user $domain
 
-    validate_webmail_domain $user $domain 'RainLoop Webmail'
+    validate_webmail_domain $user $domain 'SnappyMail Webmail'
 }
 
 @test "MAIL: Disable webmail client" {
@@ -1497,6 +1601,13 @@ function check_ip_not_banned(){
 	assert_failure $E_EXISTS
 }
 
+@test "MAIL: Add account 2" {
+	run v-add-mail-account $user $domain random "$userpass2"
+	assert_success
+	assert_file_contains  /etc/exim4/domains/$domain/limits "random@$domain"
+	refute_output
+}
+
 @test "MAIL: Add account alias" {
 	run v-add-mail-account-alias $user $domain test hestiacprocks
 	assert_success
@@ -1504,13 +1615,63 @@ function check_ip_not_banned(){
 	refute_output
 }
 
+@test "MAIL: Add account alias 2" {
+	run v-add-mail-account-alias $user $domain test hestiacprocks2
+	assert_success
+	assert_file_contains /etc/exim4/domains/$domain/aliases "hestiacprocks2@$domain"
+	refute_output
+}
+
+@test "MAIL: Add account alias 3" {
+	run v-add-mail-account-alias $user $domain test hestiacp
+	assert_success
+	assert_file_contains /etc/exim4/domains/$domain/aliases "hestiacp@$domain"
+	refute_output
+}
+
+@test "MAIL: Add account 3" {
+	run v-add-mail-account $user $domain hestia "$userpass2"
+	assert_success
+	assert_file_contains /etc/exim4/domains/$domain/limits "hestia@$domain"
+	refute_output
+}
+
+@test "MAIL: Add account 4" {
+	run v-add-mail-account $user $domain hestiarocks3 "$userpass2"
+	assert_success
+	assert_file_contains /etc/exim4/domains/$domain/limits "hestiarocks3@$domain"
+	refute_output
+}
+
+@test "MAIL: Add account 5" {
+		run v-add-mail-account $user $domain 01 "$userpass2"
+		assert_success
+		assert_file_contains /etc/exim4/domains/$domain/limits "01@$domain"
+		refute_output
+}
+
+@test "MAIL: Add account 6" {
+		run v-add-mail-account $user $domain "0aa" "$userpass2"
+		assert_success
+		assert_file_contains /etc/exim4/domains/$domain/limits "0aa@$domain"
+		refute_output
+}
+
 @test "MAIL: Add account alias Invalid length" {
-	run v-add-mail-account-alias $user $domain test 'hestiacp-realy-rocks-but-i-want-to-have-feature-xyz-and-i-want-it-now'
+	run v-add-mail-account-alias $user $domain test 'hestiacp-really-rocks-but-i-want-to-have-feature-xyz-and-i-want-it-now'
 	assert_failure $E_INVALID
 }
 @test "MAIL: Add account alias Invalid" {
-	run v-add-mail-account-alias $user $domain test '-test'
+	run v-add-mail-account-alias $user $domain test 'test+123'
 	assert_failure $E_INVALID
+}
+@test "MAIL: Add account alias starting with -" {
+	run v-add-mail-account-alias $user $domain test '-test'
+	assert_success
+}
+@test "MAIL: Add account alias ending with -" {
+	run v-add-mail-account-alias $user $domain test 'test-'
+	assert_success
 }
 @test "MAIL: Add account alias Invalid 2" {
 	run v-add-mail-account-alias $user $domain test 'hestia@test'
@@ -1604,8 +1765,8 @@ function check_ip_not_banned(){
 #----------------------------------------------------------#
 
 @test "Allow Users: User can't add user.user2.com " {
-    # Case: admin company.ltd
-    # users should not be allowed to add user.company.ltd
+    # Case: admin company.tld
+    # users should not be allowed to add user.company.tld
     run v-add-user $user2 $user2 $user@hestiacp.com default "Super Test"
     assert_success
     refute_output
@@ -1635,8 +1796,8 @@ function check_ip_not_banned(){
 
 @test "Allow Users: Set Allow users" {
     # Allow user to yes allows
-    # Case: admin company.ltd
-    # users are allowed to add user.company.ltd
+    # Case: admin company.tld
+    # users are allowed to add user.company.tld
     run v-add-web-domain-allow-users $user2 $rootdomain
     assert_success
     refute_output
@@ -1713,6 +1874,7 @@ function check_ip_not_banned(){
     # validate_database mysql database_name database_user password
     validate_database mysql $database $dbuser 1234
 }
+
 @test "MYSQL: Add Database (Duplicate)" {
     run v-add-database $user database dbuser 1234 mysql
     assert_failure $E_EXISTS
@@ -1931,13 +2093,13 @@ echo   "1.2.3.4" >> $HESTIA/data/firewall/excludes.conf
 }
 
 @test "Test create ipset" {
-  run v-add-firewall-ipset "blacklist" "script:/usr/local/hestia/install/common/firewall/ipset/blacklist.sh" v4 yes
+  run v-add-firewall-ipset "country-nl" "https://raw.githubusercontent.com/ipverse/rir-ip/master/country/nl/ipv4-aggregated.txt" v4 yes
   assert_success
   refute_output
 }
 
 @test "Create firewall with Ipset" {
-  run v-add-firewall-rule 'DROP' 'ipset:blacklist' '8083,22' 'TCP' 'Test'
+  run v-add-firewall-rule 'DROP' 'ipset:country-nl' '8083,22' 'TCP' 'Test'
   assert_success
   refute_output
 }
@@ -1945,7 +2107,7 @@ echo   "1.2.3.4" >> $HESTIA/data/firewall/excludes.conf
 @test "List firewall rules" {
   run v-list-firewall csv
   assert_success
-  assert_line --partial '11,DROP,TCP,8083,22,ipset:blacklist'
+  assert_line --partial '11,DROP,TCP,8083,22,ipset:country-nl'
 
 }
 
@@ -1956,7 +2118,7 @@ echo   "1.2.3.4" >> $HESTIA/data/firewall/excludes.conf
 }
 
 @test "Test delete ipset" {
-  run v-delete-firewall-ipset "blacklist"
+  run v-delete-firewall-ipset "country-nl"
   assert_success
   refute_output
 }

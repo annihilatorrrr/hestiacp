@@ -1,0 +1,58 @@
+#!/bin/bash
+# info: add system ssh jail
+# options: [RESTART]
+#
+# example: v-add-sys-ssh-jail yes
+#
+# This function enables ssh jailed environment.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Checking if bubblewrap is installed
+if [ ! -x /bin/bwrap ]; then
+	exit
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Move jailbash to /usr/sbin
+if [ ! -x /usr/sbin/jailbash ]; then
+	cp -f $HESTIA_COMMON_DIR/bubblewrap/jailbash /usr/sbin/jailbash
+	cp -f $HESTIA_COMMON_DIR/bubblewrap/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
+	chmod +x /usr/sbin/jailbash
+
+	service apparmor reload > /dev/null 2>&1
+fi
+
+# Register /usr/sbin/jailbash
+if [ -z "$(grep ^/usr/sbin/jailbash /etc/shells)" ]; then
+	echo "/usr/sbin/jailbash" >> /etc/shells
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+log_event "$OK" "$ARGUMENTS"
+
+exit

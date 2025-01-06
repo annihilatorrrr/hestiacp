@@ -3,6 +3,7 @@
 namespace Hestia\WebApp\Installers\Nextcloud;
 
 use Hestia\WebApp\Installers\BaseSetup as BaseSetup;
+use function Hestiacp\quoteshellarg\quoteshellarg;
 
 class NextcloudSetup extends BaseSetup {
 	protected $appInfo = [
@@ -29,7 +30,7 @@ class NextcloudSetup extends BaseSetup {
 				"template" => "owncloud",
 			],
 			"php" => [
-				"supported" => ["7.4", "8.0", "8.1"],
+				"supported" => ["8.0", "8.1", "8.2"],
 			],
 		],
 	];
@@ -47,14 +48,17 @@ class NextcloudSetup extends BaseSetup {
 			"v-run-cli-cmd",
 			[
 				"/usr/bin/php" . $options["php_version"],
-				$this->getDocRoot("occ"),
+				quoteshellarg($this->getDocRoot("occ")),
 				"maintenance:install",
 				"--database mysql",
-				"--database-name " . $this->appcontext->user() . "_" . $options["database_name"],
-				"--database-user " . $this->appcontext->user() . "_" . $options["database_user"],
-				"--database-pass " . $options["database_password"],
-				"--admin-user " . $options["username"],
-				"--admin-pass " . $options["password"],
+				"--database-name " .
+				quoteshellarg($this->appcontext->user() . "_" . $options["database_name"]),
+				"--database-host " . quoteshellarg($options["database_host"]),
+				"--database-user " .
+				quoteshellarg($this->appcontext->user() . "_" . $options["database_user"]),
+				"--database-pass " . quoteshellarg($options["database_password"]),
+				"--admin-user " . quoteshellarg($options["username"]),
+				"--admin-pass " . quoteshellarg($options["password"]),
 			],
 			$status,
 		);
@@ -63,12 +67,23 @@ class NextcloudSetup extends BaseSetup {
 			"v-run-cli-cmd",
 			[
 				"/usr/bin/php" . $options["php_version"],
-				$this->getDocRoot("occ"),
+				quoteshellarg($this->getDocRoot("occ")),
 				"config:system:set",
-				"trusted_domains 2 --value=" . $this->domain,
+				"trusted_domains 2 --value=" . quoteshellarg($this->domain),
 			],
 			$status,
 		);
+
+		// Bump minimum memory limit to 512M
+		$result = null;
+		$file = $this->getDocRoot(".user.ini");
+		$this->appcontext->runUser("v-open-fs-file", [$file], $result);
+		array_push($result->raw, "memory_limit=512M");
+		$tmp = $this->saveTempFile(implode("\r\n", $result->raw));
+		if (!$this->appcontext->runUser("v-move-fs-file", [$tmp, $file], $result)) {
+			throw new \Exception("Error updating file in: " . $tmp . " " . $result->text);
+		}
+
 		return $status->code === 0;
 	}
 }

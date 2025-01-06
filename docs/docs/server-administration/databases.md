@@ -19,6 +19,21 @@ v-list-database-hosts
 
 For security reasons, we have decided to disable this option. Please use `https://host.domain.tld/phpmyadmin/` instead.
 
+## How to create PhpMyAdmin root user credentials
+
+Replace `myrootusername` & `myrootusername_password` with preferred credentials:
+
+```bash
+mysql -uroot
+```
+
+```sql
+CREATE USER 'myrootusername'@'localhost' IDENTIFIED BY 'myrootusername_password';
+GRANT ALL PRIVILEGES ON *.* TO 'myrootusername'@'localhost' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+QUIT;
+```
+
 ## How can I enable access to `http://ip/phpmyadmin/`
 
 ### For Apache2
@@ -59,7 +74,7 @@ include     /etc/nginx/conf.d/phppgadmin.inc*;
 ## How can I connect from a remote location to the database
 
 By default, connections to port 3306 are disabled in the firewall. Open
-port 3306 in the firewall ([documentation](./firewall.md)), then edit `/etc/mysql/mariadb.conf.d/50-server.cnf`:
+port 3306 in the firewall ([documentation](./firewall)), then edit `/etc/mysql/mariadb.conf.d/50-server.cnf`:
 
 ```bash
 nano /etc/mysql/mariadb.conf.d/50-server.cnf
@@ -70,6 +85,8 @@ bind-address = "your.server.ip.address"
 ```
 
 ## PhpMyAdmin Single Sign On
+
+NOTE: PhpMyAdmin Single Sign On enabled only for individual databases. Primary "PhpMyAdmin" button for existing database credentials only.
 
 ### Unable to activate phpMyAdmin Single Sign on
 
@@ -83,7 +100,38 @@ Automated can sometimes cause issues. Login via SSH and open `/var/log/{webserve
   1. Check if the api has been enabled.
   2. Add the public IP of your server to the allowed IPs in the **Server settings**.
 - `Access denied: There is a security token mismatch`
-  1. Enable and then disable the API. This will refresh both keys.
+  1. Disable and then enable the phpMyAdmin SSO. This will refresh both keys.
   2. If you are behind a firewall or proxy, you may want to disable it and try again.
 - `Link has expired`
   1. Refresh the database page and try again.
+
+## Remote databases
+
+If needed you can simply host Mysql or Postgresql on a remote server.
+
+To add a remote database:
+
+```bash
+v-add-database-host TYPE HOST DBUSER DBPASS [MAX_DB] [CHARSETS] [TPL] [PORT]
+```
+
+For example:
+
+```bash
+v-add-database-host mysql db.hestiacp.com root mypassword 500
+```
+
+If you want you can setup phpMyAdmin on the host server to allow to connect to the database. Create a copy of `01-localhost` file in `/etc/phpmyadmin/conf.d` and change:
+
+```php
+$cfg["Servers"][$i]["host"] = "localhost";
+$cfg["Servers"][$i]["port"] = "3306";
+$cfg["Servers"][$i]["pmadb"] = "phpmyadmin";
+$cfg["Servers"][$i]["controluser"] = "pma";
+$cfg["Servers"][$i]["controlpass"] = "random password";
+$cfg["Servers"][$i]["bookmarktable"] = "pma__bookmark";
+```
+
+Please make sure to create aswell the phpmyadmin user and database.
+
+See `/usr/local/hestia/install/deb/phpmyadmin/pma.sh`

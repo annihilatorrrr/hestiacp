@@ -86,9 +86,14 @@ if (!empty($_POST["save"])) {
 
 	// Set success message
 	if (empty($_SESSION["error_msg"])) {
-		$_SESSION["ok_msg"] = _("Changes has been saved.");
+		$_SESSION["ok_msg"] = _("Changes have been saved.");
 	}
 }
+
+// Get current system time
+exec(HESTIA_CMD . "v-get-sys-timezone", $output, $return_var);
+date_default_timezone_set($output[0]);
+$current_timestamp = time();
 
 // Render page
 render_page($user, $TAB, "edit_cron");

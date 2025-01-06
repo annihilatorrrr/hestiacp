@@ -6,11 +6,11 @@ We currently only support changing the layout via CSS. You can customise HTML fi
 
 ## Adding a new theme
 
-Create a new theme in `/usr/local/hestia/web/css/theme/custom/my_theme.css`
+Create a new theme in `/usr/local/hestia/web/css/themes/custom/my_theme.css`
 
 ```css
-.body-login,
-.body-reset {
+.page-login,
+.page-reset {
 	height: auto;
 	padding-top: 10%;
 	background: rgb(231, 102, 194) !important;
@@ -20,15 +20,9 @@ Create a new theme in `/usr/local/hestia/web/css/theme/custom/my_theme.css`
 
 ## Customising a default theme
 
-Changes to default themes are always overwritten during updates. However, via the `v-add-sys-theme` command, you can create a new theme.
+Changes to default themes are always overwritten during updates. Custom CSS files can be uploaded to `/usr/local/hestia/web/css/custom` in `.css` or `.min.css` format.
 
-If you want to edit the dark theme,
-
-```bash
-cp $HESTIA/install/deb/themes/dark.css /root/my_dark.css
-```
-
-Apply your changes and follow the instructions above.
+Please note that `default.css` base theme is always loaded. Other default and custom themes override the rules in this file.
 
 ## Customising the _Domain not found_ page
 
