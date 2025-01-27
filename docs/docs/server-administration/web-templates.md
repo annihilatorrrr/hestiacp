@@ -6,7 +6,7 @@
 Modifying templates could cause errors on the server and may cause some services to not be able to reload or start.
 :::
 
-Everytime you rebuild the user or domain, the config files of the domain are overwritten by the new templates.
+Every time you rebuild the user or domain, the config files of the domain are overwritten by the new templates.
 
 This happens when:
 
@@ -37,7 +37,7 @@ cp original.sh new.sh
 
 When you are done editing your template, enable it for the desired domain from the control panel.
 
-After modifying an existing template, you need to rebuild the user configuration. This can be done using the [v-rebuild-user](../reference/cli.md#v-rebuild-user) command or the bulk operation in the web interface..
+After modifying an existing template, you need to rebuild the user configuration. This can be done using the [v-rebuild-user](../reference/cli#v-rebuild-user) command or the bulk operation in the web interface..
 
 ### Available variables
 
@@ -45,7 +45,7 @@ After modifying an existing template, you need to rebuild the user configuration
 | -------------------- | ----------------------------------------------------- | ------------------------------------------ |
 | `%ip%`               | IP Address of Server                                  | `123.123.123.123`                          |
 | `%proxy_port%`       | Port of Proxy                                         | `80`                                       |
-| `%proxy_port_ssl%`   | Port of Proxy (SSL)                                   | `443`                                      |
+| `%proxy_ssl_port%`   | Port of Proxy (SSL)                                   | `443`                                      |
 | `%web_port%`         | Port of Webserver                                     | `8080`                                     |
 | `%web_ssl_port%`     | Port of Webserver (SSL)                               | `8443`                                     |
 | `%domain%`           | Domain                                                | `domain.tld`                               |
@@ -147,3 +147,15 @@ FastCGI cache is an option for Nginx mode only. If you are using Nginx + Apache2
 To write custom caching templates, use the following naming scheme:
 
 `caching-yourname.tpl`, `caching-yourname.stpl` and `caching-yourname.sh`
+
+### Does Hestia support Web socket support
+
+Yes, Hestia works fine with Web sockets how ever our default templates include on default:
+
+```bash
+proxy_hide_header Upgrade
+```
+
+This resolved an issue with Safari from loading websites.
+
+To allow the use of Web sockets remove this line. Other wise Web sockets will not work

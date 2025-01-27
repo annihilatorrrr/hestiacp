@@ -1,16 +1,10 @@
 <?php
 
-session_start();
-if (isset($_SESSION["userContext"]) === false && php_sapi_name() !== "cli") {
-	exit();
-}
-
-require_once "/usr/local/hestia/web/inc/2fa/loader.php";
-Loader::register("./", "RobThree\\Auth");
-
 use RobThree\Auth\TwoFactorAuth;
+use RobThree\Auth\Providers\Qr\QRServerProvider;
 
-$tfa = new TwoFactorAuth("Hestia Control Panel");
+require_once __DIR__ . "/../vendor/autoload.php";
+$tfa = new TwoFactorAuth(new QRServerProvider(), "Hestia Control Panel");
 
 $secret = $tfa->createSecret(160); // Though the default is an 80 bits secret (for backwards compatibility reasons) we recommend creating 160+ bits secrets (see RFC 4226 - Algorithm Requirements)
 $qrcode = $tfa->getQRCodeImageAsDataUri(gethostname(), $secret);

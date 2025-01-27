@@ -1,10 +1,10 @@
 #!/bin/bash
-# info: change user nameservers
+# info: change user name servers
 # options: USER NS1 NS2 [NS3] [NS4] [NS5] [NS6] [NS7] [NS8]
 #
 # example: v-change-user-ns ns1.domain.tld ns2.domain.tld
 #
-# This function for changing default nameservers for specific user.
+# This function for changing default name servers for specific user.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -38,6 +38,13 @@ check_args '3' "$#" 'USER NS1 NS2 [NS3] [NS4] [NS5] [NS6] [NS7] [NS8]'
 
 # Checking argument format
 is_format_valid 'user' 'ns1' 'ns2'
+
+if [ "$ns1" = '' ]; then
+	check_result '3' "Usage: v-change-user-ns USER NS1 NS2 [NS3] [NS4] [NS5] [NS6] [NS7] [NS8]"
+fi
+if [ "$ns2" = '' ]; then
+	check_result '3' "Usage: v-change-user-ns USER NS1 NS2 [NS3] [NS4] [NS5] [NS6] [NS7] [NS8]"
+fi
 
 ns="$ns1,$ns2"
 if [ -n "$ns3" ]; then

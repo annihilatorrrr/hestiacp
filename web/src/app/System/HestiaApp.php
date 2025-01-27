@@ -15,41 +15,6 @@ class HestiaApp {
 		@mkdir(self::TMPDIR_DOWNLOADS);
 	}
 
-	public function run(string $cmd, $args, &$cmd_result = null): bool {
-		$cli_script = realpath(HESTIA_DIR_BIN . $cmd);
-		if (!str_starts_with((string) $cli_script, HESTIA_DIR_BIN)) {
-			$errstr = "$cmd is trying to traverse outside of " . HESTIA_DIR_BIN;
-			trigger_error($errstr);
-			throw new \Exception($errstr);
-		}
-		$cli_script = "/usr/bin/sudo " . quoteshellarg($cli_script);
-
-		$cli_arguments = "";
-		if (!empty($args) && is_array($args)) {
-			foreach ($args as $arg) {
-				$cli_arguments .= quoteshellarg((string) $arg) . " ";
-			}
-		} else {
-			$cli_arguments = quoteshellarg($args);
-		}
-
-		exec($cli_script . " " . $cli_arguments . " 2>&1", $output, $exit_code);
-
-		$result["code"] = $exit_code;
-		$result["args"] = $cli_arguments;
-		$result["raw"] = $output;
-		$result["text"] = implode(PHP_EOL, $output);
-		$result["json"] = json_decode($result["text"], true);
-		$cmd_result = (object) $result;
-		if ($exit_code > 0) {
-			//log error message in nginx-error.log
-			trigger_error($result["text"]);
-			//throw exception if command fails
-			throw new \Exception($result["text"]);
-		}
-		return $exit_code === 0;
-	}
-
 	public function runUser(string $cmd, $args, &$cmd_result = null): bool {
 		if (!empty($args) && is_array($args)) {
 			array_unshift($args, $this->user());
@@ -117,7 +82,7 @@ class HestiaApp {
 		$this->runUser("v-run-cli-cmd", ["composer", "selfupdate", "--$version"]);
 	}
 
-	public function runComposer($args, &$cmd_result = null, $version = 2): bool {
+	public function runComposer($args, &$cmd_result = null, $data = []): bool {
 		$composer =
 			$this->getUserHomeDir() .
 			DIRECTORY_SEPARATOR .
@@ -125,15 +90,17 @@ class HestiaApp {
 			DIRECTORY_SEPARATOR .
 			"composer";
 		if (!is_file($composer)) {
-			$this->installComposer($version);
+			$this->installComposer($data["version"]);
 		} else {
-			$this->updateComposer($version);
+			$this->updateComposer($data["version"]);
 		}
-
+		if (empty($data["php_version"])) {
+			$data["php_version"] = "";
+		}
 		if (!empty($args) && is_array($args)) {
-			array_unshift($args, "composer");
+			array_unshift($args, "php" . $data["php_version"], $composer);
 		} else {
-			$args = ["composer", $args];
+			$args = ["php" . $data["php_version"], $composer, $args];
 		}
 
 		return $this->runUser("v-run-cli-cmd", $args, $cmd_result);
@@ -145,7 +112,7 @@ class HestiaApp {
 		if (!is_file($wp)) {
 			$this->runUser("v-add-user-wp-cli", []);
 		} else {
-			$this->runUser("v-run-cli-cmd", [$wp, "cli", "update"]);
+			$this->runUser("v-run-cli-cmd", [$wp, "cli", "update", "--yes"]);
 		}
 		array_unshift($args, $wp);
 
@@ -197,6 +164,8 @@ class HestiaApp {
 		string $dbname,
 		string $dbuser,
 		string $dbpass,
+		string $dbtype = "mysql",
+		string $dbhost = "localhost",
 		string $charset = "utf8mb4",
 	) {
 		$v_password = tempnam("/tmp", "hst");
@@ -207,8 +176,8 @@ class HestiaApp {
 			$dbname,
 			$dbuser,
 			$v_password,
-			"mysql",
-			"localhost",
+			$dbtype,
+			$dbhost,
 			$charset,
 		]);
 		if (!$status) {
@@ -231,7 +200,7 @@ class HestiaApp {
 			}
 		} else {
 			$supported = $this->run("v-list-sys-php", "json", $result);
-			return $this->$result->json[0];
+			return $result->json[0];
 		}
 	}
 
@@ -346,5 +315,53 @@ class HestiaApp {
 		unlink($archive_file);
 
 		return $result;
+	}
+
+	public function cleanupTmpDir(): void {
+		$files = glob(self::TMPDIR_DOWNLOADS . "/*");
+		foreach ($files as $file) {
+			if (is_file($file)) {
+				unlink($file);
+			}
+		}
+	}
+
+	public function __destruct() {
+		$this->cleanupTmpDir();
+	}
+
+	private function run(string $cmd, $args, &$cmd_result = null): bool {
+		$cli_script = realpath(HESTIA_DIR_BIN . $cmd);
+		if (!str_starts_with((string) $cli_script, HESTIA_DIR_BIN)) {
+			$errstr = "$cmd is trying to traverse outside of " . HESTIA_DIR_BIN;
+			trigger_error($errstr);
+			throw new \Exception($errstr);
+		}
+		$cli_script = "/usr/bin/sudo " . quoteshellarg($cli_script);
+
+		$cli_arguments = "";
+		if (!empty($args) && is_array($args)) {
+			foreach ($args as $arg) {
+				$cli_arguments .= quoteshellarg((string) $arg) . " ";
+			}
+		} else {
+			$cli_arguments = quoteshellarg($args);
+		}
+
+		exec($cli_script . " " . $cli_arguments . " 2>&1", $output, $exit_code);
+
+		$result["code"] = $exit_code;
+		$result["args"] = $cli_arguments;
+		$result["raw"] = $output;
+		$result["text"] = implode(PHP_EOL, $output);
+		$result["json"] = json_decode($result["text"], true);
+		$cmd_result = (object) $result;
+		if ($exit_code > 0) {
+			//log error message in nginx-error.log
+			trigger_error($cli_script . " " . $cli_arguments . " | " . $result["text"]);
+			//throw exception if command fails
+			throw new \Exception($result["text"]);
+		}
+		return $exit_code === 0;
 	}
 }
